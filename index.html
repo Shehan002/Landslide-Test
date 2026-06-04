@@ -1,0 +1,277 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>STRATA-Link — Landslide Monitoring System</title>
+
+  <!-- Fonts: Rajdhani (display) + Source Code Pro (mono data) -->
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@400;500;600;700&family=Source+Code+Pro:wght@400;600&family=Inter:wght@400;500&display=swap" rel="stylesheet" />
+
+  <!-- Chart.js -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
+
+  <!-- Firebase v9 Compat (CDN) -->
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
+
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+
+  <!-- ═══════════════════════════════════════════════
+       SCAN-LINE OVERLAY (atmospheric effect)
+  ═══════════════════════════════════════════════ -->
+  <div class="scanline-overlay" aria-hidden="true"></div>
+
+  <!-- ═══════════════════════════════════════════════
+       HEADER
+  ═══════════════════════════════════════════════ -->
+  <header class="site-header">
+    <div class="header-left">
+      <div class="logo-mark" aria-hidden="true">
+        <span class="logo-layer l1"></span>
+        <span class="logo-layer l2"></span>
+        <span class="logo-layer l3"></span>
+      </div>
+      <div class="header-title">
+        <h1>STRATA<span class="accent">-Link</span></h1>
+        <p class="header-subtitle">Distributed Landslide Monitoring Network</p>
+      </div>
+    </div>
+    <div class="header-right">
+      <div class="connection-pill" id="connectionStatus">
+        <span class="pulse-dot" id="pulseDot"></span>
+        <span id="connectionLabel">CONNECTING…</span>
+      </div>
+      <div class="header-time">
+        <span class="time-label">LAST UPDATE</span>
+        <span class="time-value" id="lastUpdate">––:––:––</span>
+      </div>
+    </div>
+  </header>
+
+  <!-- ═══════════════════════════════════════════════
+       RISK ALERT BANNER
+  ═══════════════════════════════════════════════ -->
+  <div class="alert-banner" id="alertBanner" role="alert" aria-live="assertive">
+    <div class="alert-icon" id="alertIcon">▲</div>
+    <div class="alert-content">
+      <span class="alert-level" id="alertLevel">SAFE</span>
+      <span class="alert-message" id="alertMessage">All parameters within normal operational thresholds.</span>
+    </div>
+    <div class="alert-badge" id="alertBadge">NOMINAL</div>
+  </div>
+
+  <!-- ═══════════════════════════════════════════════
+       MAIN GRID
+  ═══════════════════════════════════════════════ -->
+  <main class="dashboard-grid">
+
+    <!-- ── ROW 1: ORIENTATION ────────────────────── -->
+    <section class="panel panel--orientation" aria-labelledby="orientationTitle">
+      <div class="panel-header">
+        <span class="panel-tag">01</span>
+        <h2 id="orientationTitle" class="panel-title">ORIENTATION ANGLES</h2>
+        <span class="panel-unit">degrees °</span>
+      </div>
+      <div class="orientation-gauges">
+        <div class="gauge-item">
+          <div class="gauge-arc-wrap">
+            <svg class="gauge-arc" viewBox="0 0 120 70" aria-hidden="true">
+              <path class="gauge-track" d="M10,65 A55,55 0 0,1 110,65" />
+              <path class="gauge-fill" id="gaugeArcX" d="M10,65 A55,55 0 0,1 110,65" stroke-dasharray="0 172.8" />
+            </svg>
+            <div class="gauge-center-value">
+              <span class="gauge-num" id="kalmanX">––</span>
+              <span class="gauge-symbol">°</span>
+            </div>
+          </div>
+          <span class="gauge-label">KALMAN X</span>
+        </div>
+        <div class="gauge-item">
+          <div class="gauge-arc-wrap">
+            <svg class="gauge-arc" viewBox="0 0 120 70" aria-hidden="true">
+              <path class="gauge-track" d="M10,65 A55,55 0 0,1 110,65" />
+              <path class="gauge-fill gauge-fill--y" id="gaugeArcY" d="M10,65 A55,55 0 0,1 110,65" stroke-dasharray="0 172.8" />
+            </svg>
+            <div class="gauge-center-value">
+              <span class="gauge-num" id="kalmanY">––</span>
+              <span class="gauge-symbol">°</span>
+            </div>
+          </div>
+          <span class="gauge-label">KALMAN Y</span>
+        </div>
+        <div class="gauge-item">
+          <div class="gauge-arc-wrap">
+            <svg class="gauge-arc" viewBox="0 0 120 70" aria-hidden="true">
+              <path class="gauge-track" d="M10,65 A55,55 0 0,1 110,65" />
+              <path class="gauge-fill gauge-fill--z" id="gaugeArcZ" d="M10,65 A55,55 0 0,1 110,65" stroke-dasharray="0 172.8" />
+            </svg>
+            <div class="gauge-center-value">
+              <span class="gauge-num" id="gyroZ">––</span>
+              <span class="gauge-symbol">°</span>
+            </div>
+          </div>
+          <span class="gauge-label">GYRO Z</span>
+        </div>
+      </div>
+    </section>
+
+    <!-- ── ROW 1: MOISTURE ───────────────────────── -->
+    <section class="panel panel--moisture" aria-labelledby="moistureTitle">
+      <div class="panel-header">
+        <span class="panel-tag">02</span>
+        <h2 id="moistureTitle" class="panel-title">SOIL MOISTURE</h2>
+        <span class="panel-unit">saturation %</span>
+      </div>
+      <div class="moisture-display">
+        <div class="moisture-pct-wrap">
+          <span class="moisture-pct" id="moisturePct">––</span>
+          <span class="moisture-pct-symbol">%</span>
+        </div>
+        <div class="moisture-bar-outer" role="progressbar" aria-valuenow="0" aria-valuemin="0" aria-valuemax="100" id="moistureBar" aria-label="Soil moisture saturation">
+          <div class="moisture-bar-fill" id="moistureBarFill"></div>
+          <div class="moisture-bar-markers">
+            <span style="left:0%">0</span>
+            <span style="left:25%">25</span>
+            <span style="left:50%">50</span>
+            <span style="left:75%">75</span>
+            <span style="left:100%">100</span>
+          </div>
+        </div>
+        <div class="moisture-thresholds">
+          <span class="threshold-tag t-safe">▌ SAFE &lt;60%</span>
+          <span class="threshold-tag t-warn">▌ WARN &lt;85%</span>
+          <span class="threshold-tag t-crit">▌ CRIT ≥85%</span>
+        </div>
+        <div class="moisture-raw">
+          RAW ADC: <span class="mono" id="moistureRaw">––</span>
+        </div>
+      </div>
+    </section>
+
+    <!-- ── ROW 1: GEOLOCATION ────────────────────── -->
+    <section class="panel panel--geo" aria-labelledby="geoTitle">
+      <div class="panel-header">
+        <span class="panel-tag">03</span>
+        <h2 id="geoTitle" class="panel-title">GEOSPATIAL FIX</h2>
+        <span class="panel-unit">WGS-84</span>
+      </div>
+      <div class="geo-display">
+        <div class="geo-coord">
+          <span class="geo-label">LAT</span>
+          <span class="geo-value mono" id="gpsLat">––.––––––</span>
+        </div>
+        <div class="geo-coord">
+          <span class="geo-label">LON</span>
+          <span class="geo-value mono" id="gpsLon">–––.––––––</span>
+        </div>
+        <a class="maps-link" id="mapsLink" href="#" target="_blank" rel="noopener noreferrer" aria-label="Open in Google Maps">
+          <span class="maps-link-icon" aria-hidden="true">◎</span>
+          OPEN IN GOOGLE MAPS
+        </a>
+        <div class="geo-accuracy">
+          <span class="geo-fix-label">GPS STATUS</span>
+          <span class="geo-fix-value" id="gpsStatus">AWAITING FIX</span>
+        </div>
+      </div>
+    </section>
+
+    <!-- ── ROW 2: STRAIN ─────────────────────────── -->
+    <section class="panel panel--strain" aria-labelledby="strainTitle">
+      <div class="panel-header">
+        <span class="panel-tag">04</span>
+        <h2 id="strainTitle" class="panel-title">ROD STRAIN SENSORS</h2>
+        <span class="panel-unit">units</span>
+      </div>
+      <div class="strain-display">
+        <div class="strain-station">
+          <span class="station-label">TOP STATION</span>
+          <div class="strain-bar-vert-wrap">
+            <div class="strain-bar-vert-outer">
+              <div class="strain-bar-vert-fill" id="strainTopFill"></div>
+            </div>
+            <span class="strain-value mono" id="strainTop">––</span>
+          </div>
+          <div class="strain-spark" id="strainTopSpark" aria-hidden="true"></div>
+        </div>
+        <div class="strain-divider"></div>
+        <div class="strain-station">
+          <span class="station-label">BOTTOM STATION</span>
+          <div class="strain-bar-vert-wrap">
+            <div class="strain-bar-vert-outer">
+              <div class="strain-bar-vert-fill strain-bar-vert-fill--bot" id="strainBotFill"></div>
+            </div>
+            <span class="strain-value mono" id="strainBot">––</span>
+          </div>
+          <div class="strain-spark" id="strainBotSpark" aria-hidden="true"></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ── ROW 2: CONTROL ────────────────────────── -->
+    <section class="panel panel--control" aria-labelledby="controlTitle">
+      <div class="panel-header">
+        <span class="panel-tag">05</span>
+        <h2 id="controlTitle" class="panel-title">REMOTE CONTROL</h2>
+        <span class="panel-unit">gateway cmd</span>
+      </div>
+      <div class="control-display">
+        <p class="control-desc">Issue a manual polling command to the Master ESP32 gateway over Firebase. The microcontroller will read the trigger flag on its next cycle.</p>
+        <button class="poll-btn" id="pollBtn" aria-label="Force Manual Sensor Poll">
+          <span class="poll-btn-icon" aria-hidden="true">⬡</span>
+          <span class="poll-btn-text">FORCE MANUAL SENSOR POLL</span>
+        </button>
+        <div class="poll-status-wrap">
+          <span class="poll-status-dot" id="pollStatusDot"></span>
+          <span class="poll-status-text" id="pollStatusText">IDLE — No command pending</span>
+        </div>
+        <div class="poll-history" id="pollHistory">
+          <span class="poll-history-label">COMMAND LOG</span>
+          <ul class="poll-history-list" id="pollHistoryList">
+            <li class="poll-history-empty">No commands issued this session.</li>
+          </ul>
+        </div>
+      </div>
+    </section>
+
+    <!-- ── ROW 3: TILT CHART ──────────────────────── -->
+    <section class="panel panel--chart-tilt" aria-labelledby="tiltChartTitle">
+      <div class="panel-header">
+        <span class="panel-tag">06</span>
+        <h2 id="tiltChartTitle" class="panel-title">TILT ANGLE HISTORY</h2>
+        <span class="panel-unit">rolling 30 samples</span>
+      </div>
+      <div class="chart-wrap">
+        <canvas id="tiltChart" aria-label="Tilt angle history chart"></canvas>
+      </div>
+    </section>
+
+    <!-- ── ROW 3: STRAIN CHART ────────────────────── -->
+    <section class="panel panel--chart-strain" aria-labelledby="strainChartTitle">
+      <div class="panel-header">
+        <span class="panel-tag">07</span>
+        <h2 id="strainChartTitle" class="panel-title">STRAIN STRESS HISTORY</h2>
+        <span class="panel-unit">rolling 30 samples</span>
+      </div>
+      <div class="chart-wrap">
+        <canvas id="strainChart" aria-label="Strain stress history chart"></canvas>
+      </div>
+    </section>
+
+  </main>
+
+  <!-- ═══════════════════════════════════════════════
+       FOOTER
+  ═══════════════════════════════════════════════ -->
+  <footer class="site-footer">
+    <span>STRATA-Link v1.0 · EE2080 Embedded Systems · LoRa/ESP32 Network</span>
+    <span class="footer-node">NODE: MASTER-GW-01 · FIREBASE RTDB</span>
+  </footer>
+
+  <script src="app.js"></script>
+</body>
+</html>
